@@ -138,6 +138,10 @@ with tab1:
 with tab2:
     st.markdown("### Draw a digit (0-9)")
 
+    # Create a key for the canvas that changes when we want to clear it
+    if 'canvas_key' not in st.session_state:
+        st.session_state.canvas_key = 0
+
     # Canvas with proper settings
     canvas_result = st_canvas(
         fill_color="rgba(0, 0, 0, 0)",  # Transparent
@@ -147,7 +151,7 @@ with tab2:
         height=200,
         width=200,
         drawing_mode="freedraw",
-        key="canvas",
+        key=f"canvas_{st.session_state.canvas_key}",  # Dynamic key
         update_streamlit=True
     )
 
@@ -166,9 +170,10 @@ with tab2:
             </div>
             """, unsafe_allow_html=True)
 
-        # Clear button
+        # Clear button - properly clears the canvas by changing the key
         if st.button("Clear Drawing"):
-            st.rerun()
+            st.session_state.canvas_key += 1
+            st.rerun()  # This is the corrected line
 
         # Probability chart
         fig = px.bar(
