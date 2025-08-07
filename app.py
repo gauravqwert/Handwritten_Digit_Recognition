@@ -74,12 +74,10 @@ canvas {
 </style>
 """, unsafe_allow_html=True)
 
-
 # ========== MODEL LOADING ==========
 @st.cache_resource
 def load_model():
     return joblib.load('knn_digit_classifier.pkl')
-
 
 model = load_model()
 
@@ -87,7 +85,6 @@ model = load_model()
 st.title("✍️ Interactive Digit Recognizer")
 
 tab1, tab2 = st.tabs(["📁 Upload Image", "✏️ Draw Digit"])
-
 
 def predict_digit(image):
     """Process image and return prediction"""
@@ -100,18 +97,17 @@ def predict_digit(image):
     probs = model.predict_proba(img_array)[0]
     return img, prediction, confidence, probs
 
-
 # ========== UPLOAD TAB ==========
 with tab1:
     st.markdown("<div class='upload-box'>", unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("Choose a handwritten digit (0-9):",
-                                     type=["png", "jpg", "jpeg"])
+    uploaded_file = st.file_uploader("Choose a handwritten digit (0-9):", 
+                                   type=["png", "jpg", "jpeg"])
     st.markdown("</div>", unsafe_allow_html=True)
 
     if uploaded_file:
         img = Image.open(uploaded_file)
         processed_img, prediction, confidence, probs = predict_digit(img)
-
+        
         col1, col2 = st.columns(2)
         with col1:
             st.image(processed_img, caption="Processed Image", width=150)
@@ -122,7 +118,7 @@ with tab1:
                 <p>Confidence: {confidence:.2f}%</p>
             </div>
             """, unsafe_allow_html=True)
-
+        
         # Probability chart
         fig = px.bar(
             x=range(10),
@@ -137,7 +133,7 @@ with tab1:
 # ========== DRAWING TAB ==========
 with tab2:
     st.markdown("### Draw a digit (0-9)")
-
+    
     # Create a key for the canvas that changes when we want to clear it
     if 'canvas_key' not in st.session_state:
         st.session_state.canvas_key = 0
@@ -151,14 +147,17 @@ with tab2:
         height=200,
         width=200,
         drawing_mode="freedraw",
-        key=f"canvas_{st.session_state.canvas_key}",  # Dynamic key
+        key=f"canvas_{st.session_state.canvas_key}",
         update_streamlit=True
     )
-
+    
     if canvas_result.image_data is not None:
-        img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+        # Fixed version without deprecation warning
+        img = Image.fromarray(canvas_result.image_data.astype('uint8')[..., :3])  # Remove alpha channel if present
+        img = img.convert('RGBA')  # Explicit conversion to RGBA
+        
         processed_img, prediction, confidence, probs = predict_digit(img)
-
+        
         col1, col2 = st.columns(2)
         with col1:
             st.image(processed_img, caption="Your Drawing", width=150)
@@ -169,12 +168,12 @@ with tab2:
                 <p>Confidence: {confidence:.2f}%</p>
             </div>
             """, unsafe_allow_html=True)
-
-        # Clear button - properly clears the canvas by changing the key
+        
+        # Clear button
         if st.button("Clear Drawing"):
             st.session_state.canvas_key += 1
-            st.rerun()  # This is the corrected line
-
+            st.rerun()
+        
         # Probability chart
         fig = px.bar(
             x=range(10),
@@ -186,7 +185,6 @@ with tab2:
         )
         st.plotly_chart(fig, use_container_width=True)
 
-
 # ========== SIDEBAR ==========
 with st.sidebar:
     st.markdown("""
@@ -196,7 +194,7 @@ with st.sidebar:
     - Use thick strokes for better recognition
     - Click "Clear Drawing" to start over
     """)
-
+    
     st.markdown("---")
     st.markdown("""
     ## ⚙️ Model Info
