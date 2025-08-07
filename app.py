@@ -1,50 +1,37 @@
 import streamlit as st
+from streamlit_drawable_canvas import st_canvas
 import joblib
 import numpy as np
 from PIL import Image, ImageOps
-import time
 import plotly.express as px
 
-# Custom CSS for animations and styling
+# ========== CUSTOM STYLING ==========
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap');
 
-html, body, [class*="css"] {
+:root {
+    --primary: #667eea;
+    --secondary: #764ba2;
+}
+
+/* Main app styling */
+.stApp {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
     font-family: 'Poppins', sans-serif;
 }
 
-.stApp {
-    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+/* Canvas styling */
+canvas {
+    border: 2px solid var(--primary) !important;
+    border-radius: 10px !important;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1) !important;
+    background-color: #000000 !important;
 }
 
-.header {
-    color: #4a4a4a;
-    text-align: center;
-    animation: fadeIn 1.5s;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-.upload-box {
-    background: white;
-    border-radius: 15px;
-    padding: 30px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    margin: 20px 0;
-    animation: slideUp 1s;
-}
-
-@keyframes slideUp {
-    from { transform: translateY(50px); opacity: 0; }
-    to { transform: translateY(0); opacity: 1; }
-}
-
+/* Prediction card */
 .prediction-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
     color: white;
     border-radius: 15px;
     padding: 20px;
@@ -54,23 +41,41 @@ html, body, [class*="css"] {
 }
 
 @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.7); }
-    70% { box-shadow: 0 0 0 15px rgba(102, 126, 234, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(102, 126, 234, 0); }
+    0% { transform: scale(1); }
+    50% { transform: scale(1.02); }
+    100% { transform: scale(1); }
 }
 
-.sidebar .sidebar-content {
-    background: linear-gradient(180deg, #2c3e50 0%, #1a2530 100%) !important;
-    color: #00ff00 !important;
+/* Tabs styling */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 10px;
 }
 
-.st-bb { border-bottom: 1px solid #eee; }
-.st-at { background-color: #667eea; }
+.stTabs [data-baseweb="tab"] {
+    background: white;
+    border-radius: 10px 10px 0 0 !important;
+    padding: 10px 20px !important;
+    transition: all 0.3s;
+}
+
+.stTabs [aria-selected="true"] {
+    background: var(--primary) !important;
+    color: white !important;
+}
+
+/* Upload box */
+.upload-box {
+    background: white;
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    margin: 20px 0;
+}
 </style>
 """, unsafe_allow_html=True)
 
 
-# Load the trained KNN model
+# ========== MODEL LOADING ==========
 @st.cache_resource
 def load_model():
     return joblib.load('knn_digit_classifier.pkl')
@@ -78,109 +83,119 @@ def load_model():
 
 model = load_model()
 
-# --- Sidebar ---
-with st.sidebar:
-    st.markdown("""
-    <div style='padding: 20px; color: red;'>
-        <h2>🔍 How It Works</h2>
-        <ol>
-            <li>Upload an image of a handwritten digit (0-9)</li>
-            <li>The AI will resize it to 8x8 pixels</li>
-            <li>KNN model predicts the digit with confidence</li>
-        </ol>
-        <p><strong>Model:</strong> K-Nearest Neighbors (K=5)</p>
-        <p><strong>Accuracy:</strong> ~98% on MNIST</p>
-    </div>
-    """, unsafe_allow_html=True)
+# ========== APP LAYOUT ==========
+st.title("✍️ Interactive Digit Recognizer")
 
-    st.markdown("---")
-    st.markdown("""
-    <div style='text-align: center;'>
-        <p>Built with ❤️ using</p>
-        <img src='https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/Scikit_learn_logo_small.svg/1200px-Scikit_learn_logo_small.svg.png' width='100'>
-        <img src='https://streamlit.io/images/brand/streamlit-mark-color.png' width='80'>
-    </div>
-    """, unsafe_allow_html=True)
+tab1, tab2 = st.tabs(["📁 Upload Image", "✏️ Draw Digit"])
 
-# --- Main Content ---
-st.markdown("<h1 class='header'>✍️ Handwritten Digit Recognizer</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #666;'>Draw or upload a digit (0-9) and watch the AI in action!</p>",
-            unsafe_allow_html=True)
 
-# File uploader with styled container
-with st.container():
+def predict_digit(image):
+    """Process image and return prediction"""
+    img = ImageOps.grayscale(image)
+    img = ImageOps.invert(img)  # MNIST uses white digits on black bg
+    img = img.resize((8, 8))
+    img_array = np.array(img).reshape(1, -1)
+    prediction = model.predict(img_array)[0]
+    confidence = np.max(model.predict_proba(img_array)) * 100
+    probs = model.predict_proba(img_array)[0]
+    return img, prediction, confidence, probs
+
+
+# ========== UPLOAD TAB ==========
+with tab1:
     st.markdown("<div class='upload-box'>", unsafe_allow_html=True)
-    uploaded_file = st.file_uploader("Choose an image...", type=["png", "jpg", "jpeg"], key="uploader")
+    uploaded_file = st.file_uploader("Choose a handwritten digit (0-9):",
+                                     type=["png", "jpg", "jpeg"])
     st.markdown("</div>", unsafe_allow_html=True)
 
-if uploaded_file is not None:
-    # Add processing animation
-    with st.spinner('🤖 AI is analyzing your digit...'):
-        time.sleep(1)  # Simulate processing time
-
-        # Load and preprocess image
+    if uploaded_file:
         img = Image.open(uploaded_file)
-        img = ImageOps.grayscale(img)
-        img = img.resize((8, 8))
+        processed_img, prediction, confidence, probs = predict_digit(img)
 
-        # Display with animation
         col1, col2 = st.columns(2)
         with col1:
-            st.image(img, caption="Processed Image (8x8)", width=150)
+            st.image(processed_img, caption="Processed Image", width=150)
         with col2:
-            st.markdown("""
-            <div style='margin-top: 30px;'>
-                <h4>⚙️ Processing Steps:</h4>
-                <ul>
-                    <li>Converted to grayscale</li>
-                    <li>Resized to 8×8 pixels</li>
-                    <li>Normalized pixel values</li>
-                </ul>
+            st.markdown(f"""
+            <div class='prediction-card'>
+                <h2>Predicted Digit: {prediction}</h2>
+                <p>Confidence: {confidence:.2f}%</p>
             </div>
             """, unsafe_allow_html=True)
 
-        # Convert to numpy array and flatten
-        img_array = np.array(img).reshape(1, -1)
-
-        # Predict with progress bar
-        progress_bar = st.progress(0)
-        for percent_complete in range(100):
-            time.sleep(0.01)  # Visual effect only
-            progress_bar.progress(percent_complete + 1)
-
-        prediction = model.predict(img_array)[0]
-        confidence = np.max(model.predict_proba(img_array)) * 100
-
-        # Show results with animated card
-        st.markdown(f"""
-        <div class='prediction-card'>
-            <h2 style='color: white; text-align: center;'>Prediction: {prediction}</h2>
-            <p style='text-align: center; font-size: 24px;'>Confidence: {confidence:.2f}%</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Show probabilities with Plotly (more interactive)
-        probs = model.predict_proba(img_array)[0]
+        # Probability chart
         fig = px.bar(
             x=range(10),
             y=probs,
             labels={'x': 'Digit', 'y': 'Probability'},
             color=probs,
-            color_continuous_scale='Viridis',
-            title='Prediction Probabilities',
-            height=400
-        )
-        fig.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            font=dict(color='#4a4a4a')
+            color_continuous_scale='thermal',
+            height=300
         )
         st.plotly_chart(fig, use_container_width=True)
 
-# Footer
-st.markdown("---")
-st.markdown("""
-<div style='text-align: center; color: #666;'>
-    <p>Try different handwriting styles! The model was trained on MNIST dataset.</p>
-</div>
-""", unsafe_allow_html=True)
+# ========== DRAWING TAB ==========
+with tab2:
+    st.markdown("### Draw a digit (0-9)")
+
+    # Canvas with proper settings
+    canvas_result = st_canvas(
+        fill_color="rgba(0, 0, 0, 0)",  # Transparent
+        stroke_width=20,
+        stroke_color="#FFFFFF",  # White drawing
+        background_color="#000000",  # Black canvas
+        height=200,
+        width=200,
+        drawing_mode="freedraw",
+        key="canvas",
+        update_streamlit=True
+    )
+
+    if canvas_result.image_data is not None:
+        img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
+        processed_img, prediction, confidence, probs = predict_digit(img)
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.image(processed_img, caption="Your Drawing", width=150)
+        with col2:
+            st.markdown(f"""
+            <div class='prediction-card'>
+                <h2>Predicted Digit: {prediction}</h2>
+                <p>Confidence: {confidence:.2f}%</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # Clear button
+        if st.button("Clear Drawing"):
+            st.rerun()
+
+        # Probability chart
+        fig = px.bar(
+            x=range(10),
+            y=probs,
+            labels={'x': 'Digit', 'y': 'Probability'},
+            color=probs,
+            color_continuous_scale='rainbow',
+            height=300
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+# ========== SIDEBAR ==========
+with st.sidebar:
+    st.markdown("""
+    ## 🎨 Drawing Tips
+    - Draw in the center of the canvas
+    - Make digits large and clear
+    - Use thick strokes for better recognition
+    - Click "Clear Drawing" to start over
+    """)
+
+    st.markdown("---")
+    st.markdown("""
+    ## ⚙️ Model Info
+    - **Algorithm:** K-Nearest Neighbors (KNN)
+    - **Training Data:** MNIST dataset
+    - **Accuracy:** ~98%
+    - **Input Size:** 8×8 pixels (grayscale)
+    """)
