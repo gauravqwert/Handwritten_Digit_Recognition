@@ -186,6 +186,7 @@ with tab2:
         )
         st.plotly_chart(fig, use_container_width=True)
 
+
 # ========== SIDEBAR ==========
 with st.sidebar:
     st.markdown("""
